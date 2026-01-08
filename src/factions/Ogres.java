@@ -10,6 +10,9 @@ public class Ogres extends Faction {
 
     @Override
     protected void calculateMight() {
-        might = armiesPopulation * 2;
+        might = 0;
+        for (var army : armies.values()) {
+            might += army.getMight() * 2;
+        }
     }
 }

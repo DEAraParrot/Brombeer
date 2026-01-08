@@ -1,0 +1,200 @@
+================================================================================
+                        SAVE SYSTEM ARCHITECTURE
+================================================================================
+
+This document explains how the game save/load system works.
+
+================================================================================
+                          DIRECTORY STRUCTURE
+================================================================================
+
+saved/
+  - Contains ONLY the current week's game state
+  - File naming: FactionName.week_N
+  - Example:
+    * dwarfs.week_0
+    * humans.week_0
+    * ogres.week_0
+
+backups/
+  - Contains all previous weeks' state files
+  - File naming: backup.FactionName.week_N
+  - Example:
+    * backup.dwarfs.week_1
+    * backup.dwarfs.week_2
+    * backup.humans.week_1
+    * etc.
+
+data/
+  - Initial faction configuration files (for Week 0)
+  - File naming: lowercase_faction_name.properties
+  - Used only on first startup or after 'newgame' command
+
+================================================================================
+                          GAME FLOW & SAVES
+================================================================================
+
+STARTUP:
+--------
+1. Game checks for saved/FactionName.week_N files
+2. If found, loads the latest week
+3. If not found (or week_0 found), loads from data/ config files
+4. Initializes faction states
+
+DURING GAMEPLAY:
+----------------
+- Game state is kept in memory
+- No automatic saves during gameplay
+
+WEEKEND RESOLUTION:
+-------------------
+1. Player enters 'weekend' command
+2. Game processes weekly changes from weeklychanges/ folder
+3. Game calculates all faction changes (population, resources, armies, etc.)
+4. Game saves state:
+   a. Archives previous week: saved/Faction.week_N → backups/backup.Faction.week_N
+   b. Saves current week to: saved/Faction.week_N+1
+5. saved/ folder now contains ONLY the new week's files
+
+EXAMPLE PROGRESSION:
+--------------------
+
+Week 0 (Startup):
+  saved/
+    dwarfs.week_0
+    humans.week_0
+    ogres.week_0
+  backups/
+    (empty)
+
+After first 'weekend' (Week 1):
+  saved/
+    dwarfs.week_1
+    humans.week_1
+    ogres.week_1
+  backups/
+    (empty - week 0 doesn't get archived)
+
+After second 'weekend' (Week 2):
+  saved/
+    dwarfs.week_2
+    humans.week_2
+    ogres.week_2
+  backups/
+    backup.dwarfs.week_1
+    backup.humans.week_1
+    backup.ogres.week_1
+
+After third 'weekend' (Week 3):
+  saved/
+    dwarfs.week_3
+    humans.week_3
+    ogres.week_3
+  backups/
+    backup.dwarfs.week_1
+    backup.humans.week_1
+    backup.ogres.week_1
+    backup.dwarfs.week_2
+    backup.humans.week_2
+    backup.ogres.week_2
+
+================================================================================
+                          GAME COMMANDS
+================================================================================
+
+weekend
+-------
+Processes one week of game time:
+- Applies weekly changes from weeklychanges/ folder
+- Calculates all faction changes
+- Archives old saves to backups/
+- Creates new week_N files in saved/
+
+newgame
+-------
+Starts a fresh game at Week 0:
+- Deletes all files in saved/ (CAREFUL!)
+- Keeps all backups intact
+- Loads initial state from data/ config files
+- Sets week counter to 0
+
+status
+------
+Displays current faction information:
+- Population, action points, resources
+- Army counts and might levels
+- Building counts
+
+backups
+-------
+Lists all available backup weeks from the backups/ folder:
+- Shows week numbers of available saves
+
+restore
+-------
+Restores an entire week from backups/:
+- Copies backup.Faction.week_N files to saved/Faction.week_N
+- Sets game week to the restored week
+- Allows continuing from a previous point
+
+help
+----
+Shows all available commands
+
+exit
+----
+Closes the game (no auto-save)
+
+================================================================================
+                        FILE FORMAT DETAILS
+================================================================================
+
+Each state file (.week_N) contains:
+  FactionName
+  Population=<number>
+  ActionPoints=<number>
+  
+  Resources:
+    food=<number>
+    wood=<number>
+    stone=<number>
+  
+  Armies:
+    [Army details or "None"]
+  
+  Buildings:
+    [Building details or "None"]
+  
+  Research:
+    [Research progress or "None"]
+  
+  Features:
+    [Space for manual notes/features]
+
+The "Features" section can be edited manually for custom faction quirks without
+affecting program functionality.
+
+================================================================================
+                        SAFETY & RECOVERY
+================================================================================
+
+Data Safety:
+- saved/ folder contains current state only (minimal storage)
+- backups/ folder preserves all historical states (recovery point)
+- Original data/ config files never modified
+
+Recovery Scenarios:
+1. Mistaken weekend resolution?
+   → Use 'restore' command to go back to previous week
+   → Delete the week you want to redo
+   → Run 'weekend' again with corrected weekly changes
+
+2. Want to start fresh?
+   → Use 'newgame' command
+   → All backups remain, so you can restore old weeks if needed
+
+3. Corrupted save?
+   → Restore from backup using 'restore' command
+   → Continue from that week
+
+================================================================================

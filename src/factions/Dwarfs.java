@@ -10,11 +10,23 @@ public class Dwarfs extends Faction {
 
     @Override
     protected void consumeFood() {
-        int reducedConsumption = population / 3;
-        food -= reducedConsumption;
+        int weeklyConsumption = (population + getTotalArmiesPopulation()) / 3;
+        int currentFood = resources.getFood();
 
-        if (food < population) {
-            population = food;
+        if (currentFood < weeklyConsumption) {
+            resources.setFood(0);
+            int populationToStarve = weeklyConsumption - currentFood;
+            population = Math.max(0, population - populationToStarve);
+        } else {
+            resources.setFood(currentFood - weeklyConsumption);
         }
+
+        if (resources.getFood() < population && resources.getFood() > 0) {
+            population = resources.getFood();
+        }
+    }
+    @Override
+    public void setMaxConcurrentBuildings(int max) {
+        this.maxConcurrentBuildings = 2;
     }
 }

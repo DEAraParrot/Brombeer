@@ -10,6 +10,13 @@ public class Humans extends Faction {
 
     @Override
     protected void applyPopulationGrowth() {
-        population += population / 3;
+        int currentFood = getResources().getFood();
+        if (currentFood >= population) {
+            int populationSurplus = currentFood - population;
+            double growthMultiplier = 1.0 + (population / 3.0 / population);
+            double surplusContribution = populationSurplus * populationSurplusModifier;
+            int newPopulation = (int) ((population + surplusContribution) * growthMultiplier);
+            population = newPopulation;
+        }
     }
 }

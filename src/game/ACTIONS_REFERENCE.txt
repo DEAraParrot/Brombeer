@@ -1,0 +1,140 @@
+================================================================================
+                         GAME ACTIONS REFERENCE
+================================================================================
+
+This file documents all possible actions players can take in a weekly change file.
+Copy the exact command format when creating your weekly changes files.
+
+================================================================================
+                              ARMY ACTIONS
+================================================================================
+
+ARMY_CREATE
+Format: ARMY_CREATE ArmyName, Population
+Example: ARMY_CREATE MainForce, 1000
+Effect: Creates a new army with the specified population from your faction's population.
+        Reduces population immediately. Army starts in DEFENDING state.
+Requirements: Specified population must not exceed current population.
+
+ARMY_ATTACK
+Format: ARMY_ATTACK ArmyName, TargetFactionName
+Example: ARMY_ATTACK MainForce, humans
+Effect: Orders an army to attack a target faction. Army will travel for N weeks
+        (based on distance) before combat is resolved.
+Requirements: Army must exist and be alive. Target faction must exist.
+             Distance between factions must be set.
+
+ARMY_PROTECT
+Format: ARMY_PROTECT ArmyName, TargetFactionOrArmyName
+Example: ARMY_PROTECT MainForce, dwarfs
+Example: ARMY_PROTECT SecondArmy, MainForce
+Effect: If target is a faction: Sets army to DEFENDING state.
+        If target is another army: Reinforces target army with this army's population
+        and removes this army from the roster.
+Requirements: Army must exist and be alive.
+
+ARMY_RETREAT
+Format: ARMY_RETREAT ArmyName
+Example: ARMY_RETREAT MainForce
+Effect: Orders an attacking army to retreat back to its faction.
+        Will take N weeks (based on distance) to return.
+Requirements: Army must exist and currently be in ATTACKING state.
+
+================================================================================
+                            BUILDING ACTIONS
+================================================================================
+
+BUILDING_CONSTRUCT
+Format: BUILDING_CONSTRUCT BuildingType
+Example: BUILDING_CONSTRUCT Farm
+Available Buildings: Farm, Lumbermill, Quarry
+Effect: Queues a new building for construction. Only one building can be
+        constructed at a time. Requires specified resources immediately.
+        Construction progresses automatically each week.
+Requirements: Must have required resources. Cannot already be constructing a building.
+
+BUILDING_DEMOLISH
+Format: BUILDING_DEMOLISH BuildingId
+Example: BUILDING_DEMOLISH Farm_1
+Effect: Demolishes a completed building and returns 15% of its construction cost
+        in resources.
+Requirements: Building must exist and be fully constructed.
+
+================================================================================
+                           RESEARCH ACTIONS
+================================================================================
+
+RESEARCH
+Format: RESEARCH FieldName
+Format: RESEARCH FieldName, ActionPointsInvested
+Example: RESEARCH Mining
+Example: RESEARCH Mining, 3
+Effect: Allocates action points to research in a field. Each week, there's a chance
+        to discover something (50% base success rate). Invested AP increases discovery
+        chance and breakthrough chance (5% base).
+        Result: Failure, Discovery, or Breakthrough
+Requirements: Allocated AP must not exceed available action points.
+
+================================================================================
+                         FACTION REFERENCE
+================================================================================
+
+Current Factions and Distances:
+- dwarfs    (2 weeks to humans, 3 weeks to ogres)
+- humans   (2 weeks to dwarfs, 2 weeks to ogres)
+- ogres     (3 weeks to dwarfs, 2 weeks to humans)
+
+Faction Specialties:
+- Dwarfs:         Reduced food consumption (1/3 instead of 1/2)
+- Humans:         Enhanced population growth (1/3 instead of 1/4)
+- Ogres:          Double military strength (2x might multiplier)
+
+================================================================================
+                            GAME MECHANICS
+================================================================================
+
+Population:
+- Grows 25% per week (Humans grow 33%)
+- Consumed at rate: (Population + ArmiesPopulation) / 2 per week
+  (Dwarfs: /3 instead, Ogres: /2)
+- If food is insufficient, population equals remaining food
+
+Action Points:
+- Calculated as: max(3, Population / 1000)
+- Used for research, construction, and other strategic actions
+- Reset each week
+
+Resources:
+- Food:  Consumed each week, produced by Farms
+- Wood:  Used in construction, produced by Lumbermills
+- Stone: Used in construction, produced by Quarries
+
+Armies:
+- Might = Population + Modifiers
+- Carrying Capacity = Population / 2
+- Food consumed same as population (before generals/heroes)
+
+Buildings:
+- Farm:      2 weeks, costs 50 wood + 25 stone, produces 100 food/week, costs 5 food/week
+- Lumbermill: 3 weeks, costs 100 stone + 50 wood, produces 80 wood/week, costs 10 food/week
+- Quarry:    4 weeks, costs 100 wood + 50 stone, produces 60 stone/week, costs 10 food/week
+
+================================================================================
+                            FILE FORMAT
+================================================================================
+
+Weekly Change File Format (.week files):
+
+# Comments start with hash and are ignored
+FACTION FactionName
+COMMAND param1, param2
+COMMAND param2
+COMMAND param3
+
+FACTION AnotherFactionName
+COMMAND param1, param2
+
+Note: Commands are separated by commas for multi-parameter actions and by
+      spaces/newlines for single parameters.
+
+================================================================================
