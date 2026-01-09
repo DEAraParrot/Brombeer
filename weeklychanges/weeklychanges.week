@@ -1,0 +1,10 @@
+# Week 2 Changes
+# Example weekly file showing the format for faction actions
+
+FACTION dwarfs
+
+FACTION humans
+BUILDING_CONSTRUCT Lumbermill
+RESEARCH Farming, 1
+
+FACTION ogres

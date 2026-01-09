@@ -19,11 +19,12 @@ public abstract class Faction {
     protected Map<String, Army> armies;
     protected int armyCounter;
     protected Map<String, Building> buildings;
-    protected List<ConstructingBuilding> buildingQueue;
+    protected List<Building> buildingQueue;
     protected int maxConcurrentBuildings;
     protected Research research;
     protected String features;
     protected double populationSurplusModifier;
+    protected Traits traits;
 
     protected Properties config;
     protected Properties state;
@@ -45,8 +46,12 @@ public abstract class Faction {
         this.research = new Research();
         this.features = "";
         this.populationSurplusModifier = 0.1;
+        this.traits = new Traits();
         this.config = new Properties();
         this.state = new Properties();
+    }
+
+    protected void initializeTraits() {
     }
 
     public void loadFactionData() throws IOException {
@@ -79,7 +84,7 @@ public abstract class Faction {
                 for (String buildingType : initialBuildingsStr.split(",")) {
                     buildingType = buildingType.trim();
                     if (!buildingType.isEmpty()) {
-                        queueBuilding(buildingType);
+                        createInitialBuilding(buildingType);
                     }
                 }
             }
@@ -102,12 +107,18 @@ public abstract class Faction {
     }
 
     protected void calculateActionPoints() {
-        actionPoints = Math.max(3, population / 1000);
+        actionPoints = traits.calculateTotalActionPoints();
         usedActionPoints = 0;
     }
 
+    protected int getEffectiveMaxConcurrentBuildings() {
+        return maxConcurrentBuildings + traits.getMaxConcurrentBuildingsBonus();
+    }
+
     protected void consumeFood() {
-        int weeklyConsumption = (population + getTotalArmiesPopulation()) / 2;
+        int baseConsumption = (population + getTotalArmiesPopulation()) / 2;
+        int consumptionModifier = traits.getPopulationConsumptionModifier();
+        int weeklyConsumption = Math.max(0, baseConsumption + consumptionModifier);
         int currentFood = resources.getFood();
 
         if (currentFood < weeklyConsumption) {
@@ -132,9 +143,11 @@ public abstract class Faction {
         int currentFood = resources.getFood();
         if (currentFood >= population) {
             int populationSurplus = currentFood - population;
-            double growthMultiplier = 1.0 + (population / 4.0 / population);
+            double baseGrowthMultiplier = 1.0 + (population / 4.0 / population);
+            int growthModifier = traits.getPopulationGrowthModifier();
+            double effectiveGrowthMultiplier = baseGrowthMultiplier + (growthModifier * 0.01);
             double surplusContribution = populationSurplus * populationSurplusModifier;
-            int newPopulation = (int) ((population + surplusContribution) * growthMultiplier);
+            int newPopulation = (int) ((population + surplusContribution) * effectiveGrowthMultiplier);
             population = newPopulation;
         }
     }
@@ -160,6 +173,10 @@ public abstract class Faction {
         armyCounter++;
 
         Army army = new Army(name != null ? name : "army_" + armyCounter, amount);
+        int mightBonus = traits.getTrait("armyMightBonus");
+        if (mightBonus != 0) {
+            army.setMightModifier(mightBonus);
+        }
         armies.put(army.getId(), army);
     }
 
@@ -171,14 +188,40 @@ public abstract class Faction {
         army.reinforce(amount);
     }
 
+    public void createInitialBuilding(String buildingType) {
+        BuildingDefinition def = BuildingDefinition.get(buildingType);
+        if (def == null) {
+            throw new IllegalArgumentException("Unknown building type: " + buildingType);
+        }
+
+        Building building = def.createCompleted(buildingType + "_" + (buildings.size() + 1));
+        buildings.put(building.getId(), building);
+    }
+
     public void queueBuilding(String buildingType) {
         BuildingDefinition def = BuildingDefinition.get(buildingType);
         if (def == null) {
             throw new IllegalArgumentException("Unknown building type: " + buildingType);
         }
 
-        if (buildingQueue.size() >= maxConcurrentBuildings) {
-            throw new IllegalStateException("Building queue is full (max: " + maxConcurrentBuildings + ")");
+        int effectiveMaxConcurrent = getEffectiveMaxConcurrentBuildings();
+        if (buildingQueue.size() >= effectiveMaxConcurrent) {
+            throw new IllegalStateException("Building queue is full (max: " + effectiveMaxConcurrent + ")");
+        }
+
+        int buildingsOfTypeUnderConstruction = (int) buildingQueue.stream()
+                .filter(b -> b.getType().equals(buildingType))
+                .count();
+        
+        int buildingsOfTypeCompleted = (int) buildings.values().stream()
+                .filter(b -> b.getType().equals(buildingType))
+                .count();
+        
+        int totalOfType = buildingsOfTypeUnderConstruction + buildingsOfTypeCompleted;
+        int effectiveMaxOfType = def.getMaxConcurrentOfType() + traits.getMaxBuildingTypeLimit(buildingType);
+        
+        if (totalOfType >= effectiveMaxOfType) {
+            throw new IllegalStateException("Cannot build more " + buildingType + " (max: " + effectiveMaxOfType + ")");
         }
 
         Map<String, Integer> cost = def.getConstructionCost();
@@ -186,12 +229,12 @@ public abstract class Faction {
             resources.subtract(entry.getKey(), entry.getValue());
         }
 
-        ConstructingBuilding building = def.createConstructing(buildingType + "_" + (buildings.size() + buildingQueue.size() + 1));
+        Building building = def.createConstructing(buildingType + "_" + (buildings.size() + buildingQueue.size() + 1));
         buildingQueue.add(building);
     }
 
     public void postponeBuilding(String buildingId) {
-        for (ConstructingBuilding building : buildingQueue) {
+        for (Building building : buildingQueue) {
             if (building.getId().equals(buildingId)) {
                 buildingQueue.remove(building);
                 buildingQueue.add(building);
@@ -218,7 +261,7 @@ public abstract class Faction {
 
         research.addProgress(field, investedAP);
 
-        ResearchResult result = ResearchEngine.calculateOutcome(field, investedAP);
+        ResearchResult result = research.calculateOutcome(field, investedAP);
         research.recordResult(field, result);
 
         if (result == ResearchResult.DISCOVERY) {
@@ -235,9 +278,9 @@ public abstract class Faction {
     }
 
     protected void processBuildings() {
-        List<ConstructingBuilding> completedBuildings = new ArrayList<>();
+        List<Building> completedBuildings = new ArrayList<>();
 
-        for (ConstructingBuilding constructing : buildingQueue) {
+        for (Building constructing : buildingQueue) {
             constructing.addConstruction(1);
             
             if (constructing.isComplete()) {
@@ -258,7 +301,11 @@ public abstract class Faction {
     protected void applyBuildingProduction() {
         for (Building building : buildings.values()) {
             for (Map.Entry<String, Integer> entry : building.getProduction().entrySet()) {
-                resources.add(entry.getKey(), entry.getValue());
+                String resourceType = entry.getKey();
+                int baseProduction = entry.getValue();
+                int productionModifier = traits.getResourceProductionModifier(resourceType);
+                int effectiveProduction = baseProduction + productionModifier;
+                resources.add(resourceType, Math.max(0, effectiveProduction));
             }
         }
     }
@@ -266,7 +313,11 @@ public abstract class Faction {
     protected void applyBuildingUpkeep() {
         for (Building building : buildings.values()) {
             for (Map.Entry<String, Integer> entry : building.getUpkeep().entrySet()) {
-                resources.subtract(entry.getKey(), entry.getValue());
+                String resourceType = entry.getKey();
+                int baseUpkeep = entry.getValue();
+                int consumptionModifier = traits.getResourceConsumptionModifier(resourceType);
+                int effectiveUpkeep = baseUpkeep + consumptionModifier;
+                resources.subtract(resourceType, Math.max(0, effectiveUpkeep));
             }
         }
     }
@@ -337,11 +388,11 @@ public abstract class Faction {
         return buildings.get(id);
     }
 
-    public ConstructingBuilding getBuildingUnderConstruction() {
+    public Building getBuildingUnderConstruction() {
         return buildingQueue.isEmpty() ? null : buildingQueue.get(0);
     }
 
-    public List<ConstructingBuilding> getBuildingQueue() {
+    public List<Building> getBuildingQueue() {
         return new ArrayList<>(buildingQueue);
     }
 
@@ -375,6 +426,22 @@ public abstract class Faction {
 
     public void setPopulationSurplusModifier(double modifier) {
         this.populationSurplusModifier = modifier;
+    }
+
+    public Traits getTraits() {
+        return traits;
+    }
+
+    public void addTrait(String traitName, int actionPointValue) {
+        traits.addTrait(traitName, actionPointValue);
+    }
+
+    public void removeTrait(String traitName) {
+        traits.removeTrait(traitName);
+    }
+
+    public void setTrait(String traitName, int actionPointValue) {
+        traits.setTrait(traitName, actionPointValue);
     }
 
 }

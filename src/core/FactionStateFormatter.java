@@ -14,6 +14,38 @@ public class FactionStateFormatter {
         sb.append("ActionPoints=").append(faction.getActionPoints()).append("\n");
         sb.append("\n");
 
+        sb.append("Traits:\n");
+        Traits traits = faction.getTraits();
+        if (traits.getAllTraits().isEmpty()) {
+            sb.append("  None\n");
+        } else {
+            for (Map.Entry<String, Integer> entry : traits.getAllTraits().entrySet()) {
+                String traitName = entry.getKey();
+                int value = entry.getValue();
+                Traits.TraitDefinition def = traits.getTraitDefinition(traitName);
+                
+                if (def != null) {
+                    sb.append("  ").append(def.displayName).append(": ").append(def.description).append(" [").append(traitName).append("=").append(value).append("]\n");
+                } else {
+                    sb.append("  ").append(traitName).append(": ").append(value).append("\n");
+                }
+            }
+            
+            sb.append("\n  Trait Summation:\n");
+            Map<String, Integer> summation = traits.getTraitSummationByCategory();
+            if (summation.isEmpty()) {
+                sb.append("    None\n");
+            } else {
+                for (Map.Entry<String, Integer> entry : summation.entrySet()) {
+                    String category = entry.getKey();
+                    int total = entry.getValue();
+                    String sign = total > 0 ? "+" : "";
+                    sb.append("    ").append(category).append(": ").append(sign).append(total).append("\n");
+                }
+            }
+        }
+        sb.append("\n");
+
         sb.append("Resources:\n");
         Resources resources = faction.getResources();
         sb.append("  food=").append(resources.getFood()).append("\n");
@@ -60,7 +92,7 @@ public class FactionStateFormatter {
         } else {
             Map<String, Integer> constructingCounts = new HashMap<>();
             Map<String, Integer> weeksRemaining = new HashMap<>();
-            for (ConstructingBuilding building : faction.getBuildingQueue()) {
+            for (Building building : faction.getBuildingQueue()) {
                 String type = building.getType();
                 constructingCounts.put(type, constructingCounts.getOrDefault(type, 0) + 1);
                 weeksRemaining.put(type, building.getConstructionWeeksRemaining());
@@ -114,9 +146,11 @@ public class FactionStateFormatter {
         StringBuilder featuresBuilder = new StringBuilder();
         String buildingsLine = "";
         String constructingLine = "";
+        String traitsLine = "";
         boolean inFeaturesSection = false;
         boolean inBuildingsSection = false;
         boolean inConstructingSection = false;
+        boolean inTraitsSection = false;
 
         for (String line : lines) {
             String trimmed = line.trim();
@@ -128,7 +162,16 @@ public class FactionStateFormatter {
                 continue;
             }
 
+            if (trimmed.equals("Traits:")) {
+                inTraitsSection = true;
+                inBuildingsSection = false;
+                inConstructingSection = false;
+                inFeaturesSection = false;
+                continue;
+            }
+
             if (trimmed.equals("Buildings:")) {
+                inTraitsSection = false;
                 inBuildingsSection = true;
                 inConstructingSection = false;
                 inFeaturesSection = false;
@@ -136,6 +179,7 @@ public class FactionStateFormatter {
             }
 
             if (trimmed.equals("Constructing:")) {
+                inTraitsSection = false;
                 inBuildingsSection = false;
                 inConstructingSection = true;
                 inFeaturesSection = false;
@@ -143,6 +187,7 @@ public class FactionStateFormatter {
             }
 
             if (trimmed.equals("Features:")) {
+                inTraitsSection = false;
                 inBuildingsSection = false;
                 inConstructingSection = false;
                 inFeaturesSection = true;
@@ -150,12 +195,20 @@ public class FactionStateFormatter {
             }
 
             if (trimmed.matches("^[A-Za-z]+:$")) {
+                inTraitsSection = false;
                 inBuildingsSection = false;
                 inConstructingSection = false;
                 inFeaturesSection = false;
             }
 
-            if (inBuildingsSection) {
+            if (inTraitsSection) {
+                if (!trimmed.equals("None")) {
+                    if (!traitsLine.isEmpty()) {
+                        traitsLine += ", ";
+                    }
+                    traitsLine += trimmed;
+                }
+            } else if (inBuildingsSection) {
                 if (!trimmed.equals("None")) {
                     buildingsLine = trimmed;
                 }
@@ -198,6 +251,7 @@ public class FactionStateFormatter {
             faction.getResources().setStone(stone);
         }
 
+        loadTraits(faction, traitsLine);
         loadBuildings(faction, buildingsLine);
         loadConstructingBuildings(faction, constructingLine);
 
@@ -235,19 +289,13 @@ public class FactionStateFormatter {
             return;
         }
 
-        System.out.println("DEBUG: loadConstructingBuildings - line: '" + constructingLine + "'");
-        System.out.println("DEBUG: faction.getBuildingQueue() ref: " + System.identityHashCode(faction.getBuildingQueue()));
         String[] entries = constructingLine.split(",(?![^()]*\\))");
-        System.out.println("DEBUG: entries.length = " + entries.length);
         for (String entry : entries) {
             entry = entry.trim();
-            System.out.println("DEBUG: Processing entry: '" + entry + "'");
             String[] parts = entry.split("\\s+");
-            System.out.println("DEBUG: parts.length = " + parts.length);
             if (parts.length >= 2) {
                 String buildingType = parts[0];
                 int count = Integer.parseInt(parts[1]);
-                System.out.println("DEBUG: buildingType=" + buildingType + ", count=" + count);
                 
                 int weeksRemaining = 0;
                 int openParen = entry.indexOf('(');
@@ -259,22 +307,48 @@ public class FactionStateFormatter {
                         weeksRemaining = Integer.parseInt(weeksPart);
                     }
                 }
-                System.out.println("DEBUG: weeksRemaining=" + weeksRemaining);
                 
                 BuildingDefinition def = BuildingDefinition.get(buildingType);
-                System.out.println("DEBUG: def=" + def);
                 if (def != null) {
                     for (int i = 0; i < count; i++) {
-                        ConstructingBuilding building = def.createConstructing(weeksRemaining);
-                        List<ConstructingBuilding> queue = faction.getBuildingQueue();
-                        queue.add(building);
-                        System.out.println("DEBUG: After add, queue size: " + queue.size());
-                        System.out.println("DEBUG: faction.getBuildingQueue() size after add: " + faction.getBuildingQueue().size());
+                        Building building = def.createConstructing(weeksRemaining);
+                        faction.getBuildingQueue().add(building);
                     }
                 }
             }
         }
-        System.out.println("DEBUG: End of loadConstructingBuildings, final queue size: " + faction.getBuildingQueue().size());
+    }
+
+    private static void loadTraits(Faction faction, String traitsLine) {
+        if (traitsLine.isEmpty() || traitsLine.equals("None")) {
+            return;
+        }
+
+        String[] entries = traitsLine.split(",");
+        for (String entry : entries) {
+            entry = entry.trim();
+            
+            if (entry.contains("Trait Summation")) {
+                continue;
+            }
+            
+            int bracketStart = entry.indexOf('[');
+            int bracketEnd = entry.indexOf(']');
+            
+            if (bracketStart >= 0 && bracketEnd > bracketStart) {
+                String internalData = entry.substring(bracketStart + 1, bracketEnd);
+                String[] parts = internalData.split("=");
+                if (parts.length == 2) {
+                    String traitName = parts[0].trim();
+                    String traitValue = parts[1].trim();
+                    try {
+                        int value = Integer.parseInt(traitValue);
+                        faction.setTrait(traitName, value);
+                    } catch (NumberFormatException e) {
+                    }
+                }
+            }
+        }
     }
 
 }

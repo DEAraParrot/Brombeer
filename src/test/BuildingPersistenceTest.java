@@ -35,7 +35,7 @@ public class BuildingPersistenceTest {
         }
 
         System.out.println("Constructing Buildings: " + dwarfs.getBuildingQueue().size());
-        for (ConstructingBuilding b : dwarfs.getBuildingQueue()) {
+        for (Building b : dwarfs.getBuildingQueue()) {
             System.out.println("  - " + b.getType() + " (" + b.getConstructionWeeksRemaining() + " weeks)");
         }
 
@@ -56,7 +56,7 @@ public class BuildingPersistenceTest {
         }
 
         System.out.println("Constructing Buildings: " + dwarfs2.getBuildingQueue().size());
-        for (ConstructingBuilding b : dwarfs2.getBuildingQueue()) {
+        for (Building b : dwarfs2.getBuildingQueue()) {
             System.out.println("  - " + b.getType() + " (" + b.getConstructionWeeksRemaining() + " weeks)");
         }
 

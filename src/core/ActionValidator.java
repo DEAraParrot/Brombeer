@@ -35,7 +35,7 @@ public class ActionValidator {
         }
 
         int totalResourcesUsed = 0;
-        for (ConstructingBuilding building : faction.getBuildingQueue()) {
+        for (Building building : faction.getBuildingQueue()) {
             totalResourcesUsed++;
         }
 

@@ -1,0 +1,244 @@
+================================================================================
+                           TRAITS REFERENCE GUIDE
+================================================================================
+
+Traits are faction characteristics that modify game mechanics. Traits are
+faction-specific and defined in configuration files (*.properties) and saved
+with the faction state.
+
+Traits follow a naming convention:
+- Trait names use camelCase
+- Trait values are integers representing the modifier amount
+- Traits can be positive (bonuses) or negative (penalties)
+
+================================================================================
+                          TRAIT CATEGORIES
+================================================================================
+
+1. ACTION POINT TRAITS
+   Traits that affect how many action points a faction has per week.
+
+   Trait: actionPoints
+   Type: Integer
+   Effect: +/- Action points per week
+   Example: actionPoints:5 gives +5 AP per week
+   Use Case: Ambitious factions get +AP, sedentary factions get -AP
+
+2. BUILDING CONSTRUCTION TRAITS
+   Traits that affect building construction limits.
+
+   Trait A: maxConcurrentBuildings
+   Type: Integer
+   Effect: +/- maximum buildings that can be under construction simultaneously
+   Example: maxConcurrentBuildings:2 allows +2 more concurrent buildings
+   Use Case: Efficient builders can construct more buildings at once
+
+   Trait B: maxBuildingType_<TYPE>
+   Type: Integer
+   Effect: +/- maximum of specific building type (completed + under construction)
+   Example: maxBuildingType_Farm:2 allows +2 more farms to exist
+   Use Case: "Happy Farmers" trait allows +1 farm, "Quarry Specialist" allows +2 quarries
+   Available Types: Farm, Lumbermill, Quarry
+
+3. POPULATION GROWTH TRAITS
+   Traits that affect how population grows each week.
+
+   Trait: populationGrowthModifier
+   Type: Integer
+   Effect: +/- percentage added to growth multiplier (applied as * 0.01)
+   Example: populationGrowthModifier:5 adds 5% to growth rate
+   Use Case: Fertile factions grow faster, infertile factions grow slower
+   Range: Recommend -20 to +20
+
+4. POPULATION CONSUMPTION TRAITS
+   Traits that affect how much food is consumed by the population.
+
+   Trait: populationConsumptionModifier
+   Type: Integer
+   Effect: +/- food consumed per week
+   Example: populationConsumptionModifier:-5 reduces food consumption by 5
+   Use Case: Efficient factions need less food, wasteful factions need more
+   Positive = more consumption, Negative = less consumption
+
+5. RESOURCE PRODUCTION TRAITS
+   Traits that affect how much resources buildings produce.
+
+   Trait: resourceProduction_<RESOURCE>
+   Type: Integer
+   Effect: +/- amount of resource produced per week
+   Example: resourceProduction_food:10 gives +10 food per week
+   Available Resources: food, wood, stone
+   Use Case: "Skilled Farmers" trait gives +food, "Master Lumberjacks" gives +wood
+
+6. RESOURCE CONSUMPTION TRAITS
+   Traits that affect how much resources buildings consume (upkeep).
+
+   Trait: resourceConsumption_<RESOURCE>
+   Type: Integer
+   Effect: +/- amount of resource consumed per week (upkeep)
+   Example: resourceConsumption_food:-2 reduces food upkeep by 2
+   Available Resources: food, wood, stone
+   Use Case: Efficient construction reduces upkeep costs
+   Positive = more consumption, Negative = less consumption
+
+================================================================================
+                         EXAMPLE TRAIT CONFIGURATIONS
+================================================================================
+
+HUMANS (Ambitious & Disciplined)
+  traits=Ambitious:4,Disciplined:3
+  - actionPoints = 4 + 3 = 7 AP per week
+  - Efficient builders: Disciplined reduces building upkeep
+
+DWARFS (Industrious)
+  traits=Industrious:5,Expert_Miner:2
+  - actionPoints = 5 + 2 = 7 AP per week
+  - Expert miners: +extra stone production
+
+OGRES (Ferocious & Warlike)
+  traits=Ferocious:6,Warlike:3
+  - actionPoints = 6 + 3 = 9 AP per week (highest)
+  - Higher consumption due to aggressive nature
+
+CUSTOM EXAMPLE: Elves (Balanced & Fertile)
+  traits=actionPoints:4,populationGrowthModifier:10,resourceProduction_food:5
+  - 4 AP per week
+  - 10% faster population growth
+  - +5 food production per week
+
+CUSTOM EXAMPLE: Draconic Hoard (Rich & Greedy)
+  traits=actionPoints:8,resourceConsumption_food:10,maxConcurrentBuildings:1
+  - High AP but limited building capacity
+  - Expensive food consumption (hoarding nature)
+
+================================================================================
+                       TRAIT NAMING CONVENTIONS
+================================================================================
+
+Format: [Adjective][Noun]:[Value]
+
+Examples:
+  - Industrious:5 (adjective-based trait)
+  - Happy_Farmers:1 (descriptive two-word trait)
+  - Expert_Miner:2 (profession-based trait)
+  - Peaceful:2 (personality trait)
+  - Efficient_Builders:1 (group-based trait)
+
+Trait Values:
+  - Typically 1-10 for individual traits
+  - Can be combined (sum all trait values of same effect)
+  - Can be negative for penalties (e.g., "Lazy:-3")
+
+================================================================================
+                      CREATING NEW TRAITS
+================================================================================
+
+To add a new trait to your faction:
+
+1. Edit the faction's config file (data/faction_name.properties)
+2. Modify the "traits" line:
+   traits=ExistingTrait:5,NewTrait:3
+
+3. The trait will automatically be loaded and applied based on its name:
+   - If it starts with "actionPoints", it adds to AP
+   - If it contains "populationGrowth", it modifies growth
+   - If it contains "resourceProduction_", it adds to that resource
+   - And so on...
+
+4. Traits are case-sensitive! Use exact names from this reference.
+
+5. Multiple traits can be combined with commas, no spaces after commas
+
+================================================================================
+                    ADVANCED: IMPLEMENTING NEW TRAIT TYPES
+================================================================================
+
+To add a completely new trait type (requires code modification):
+
+1. Update Traits.java:
+   - Add getter method: public int getNewTraitModifier()
+   - Use getTrait("traitName") to fetch the value
+
+2. Update Faction.java:
+   - Modify the relevant game mechanic method
+   - Call the new trait getter from step 1
+   - Apply the modifier to your calculation
+
+3. Update this file with documentation
+
+Example:
+  Trait: militaryMight
+  Code in Faction.java:
+    protected int calculateMight() {
+        might = 0;
+        int militaryBonus = traits.getTrait("militaryMight");
+        for (Army army : armies.values()) {
+            might += army.getMight() + militaryBonus;
+        }
+    }
+
+================================================================================
+                    RECOMMENDED TRAITS FOR COMMON PLAYSTYLES
+================================================================================
+
+ECONOMIC GROWTH (Food & Resources Focus):
+  - populationGrowthModifier:10 (faster growth)
+  - resourceProduction_food:5 (more food)
+  - populationConsumptionModifier:-3 (less food needed)
+
+MILITARY DOMINANCE (Large Army Focus):
+  - actionPoints:6 (more decisions)
+  - populationConsumptionModifier:5 (armies need more food)
+  - might-based traits (when implemented)
+
+EFFICIENT BUILDING (Construction Focus):
+  - maxConcurrentBuildings:2 (build faster)
+  - maxBuildingType_Farm:1 (can build more farms)
+  - resourceConsumption_food:-2 (cheaper upkeep)
+
+SPECIALIZED PRODUCTION (Resource Focus):
+  - resourceProduction_wood:8 (focus on lumber)
+  - resourceConsumption_food:-5 (efficient)
+  - actionPoints:3 (less focus on other areas)
+
+================================================================================
+                              TIPS & TRICKS
+================================================================================
+
+1. Traits are cumulative: actionPoints:3 + actionPoints:2 = 5 total AP
+   So split traits logically for flavor: "Ambitious:2,Disciplined:3"
+
+2. Negative traits are useful for balance:
+   "Lazy:-1" or "Gluttonous:3" (high consumption)
+
+3. Traits don't have to make mechanical sense - they're flavor!
+   "Obsessed_With_Gold:1" could grant +stone (gold metaphor)
+
+4. Saving includes traits automatically via FactionStateFormatter
+
+5. Traits can be modified mid-game by updating config files
+
+6. Combining opposing traits creates interesting mechanics:
+   Ambitious:5 + Lazy:-2 = net +3 AP with flavor
+
+================================================================================
+                      FUTURE TRAIT EXPANSION IDEAS
+================================================================================
+
+Potential traits for future development:
+
+- Building_Speed (reduce construction time)
+- Research_Bonus (improve research success chance)
+- Trade_Deals (get better prices)
+- Diplomacy (improve relations with other factions)
+- Army_Morale (affect army performance in combat)
+- Defense_Bonus (reduce damage to armies)
+- Resource_Waste (lose more/less resources when dormant)
+- Fortification (buildings require more to destroy)
+- Innovation (research unlocks new buildings/units)
+- Culture (attract population from other factions)
+
+================================================================================
+Last Updated: January 9, 2026
+Version: 1.0 - Core Trait System
+================================================================================

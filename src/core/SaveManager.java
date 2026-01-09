@@ -4,6 +4,7 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.FileTime;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -87,6 +88,37 @@ public class SaveManager {
             Path destination = Paths.get(BACKUP_DIR, archivedName);
 
             Files.move(file.toPath(), destination, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
+
+        cleanupOldBackups(weekToArchive);
+    }
+
+    private static void cleanupOldBackups(int currentWeek) throws IOException {
+        File backupDir = new File(BACKUP_DIR);
+        if (!backupDir.exists() || !backupDir.isDirectory()) {
+            return;
+        }
+
+        final int WEEKS_TO_KEEP = 4;
+        long currentTimeMillis = System.currentTimeMillis();
+
+        File[] backupFiles = backupDir.listFiles((dir, name) -> name.matches("backup\\..*\\.week_\\d+"));
+        if (backupFiles == null) {
+            return;
+        }
+
+        for (File file : backupFiles) {
+            try {
+                FileTime fileTime = Files.getLastModifiedTime(file.toPath());
+                long fileAgeMillis = currentTimeMillis - fileTime.toMillis();
+                long weeksInMillis = WEEKS_TO_KEEP * 7L * 24L * 60L * 60L * 1000L;
+
+                if (fileAgeMillis > weeksInMillis) {
+                    Files.delete(file.toPath());
+                }
+            } catch (IOException e) {
+                System.err.println("Failed to delete old backup: " + file.getName());
+            }
         }
     }
 
